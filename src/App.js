@@ -4,7 +4,13 @@ import Navigation from './components/Navigation/Navigation';
 import Logo from './components/Logo/Logo';
 import ImageLinkForm from './components/ImageLinkForm/ImageLinkForm';
 import Rank from './components/Rank/Rank';
+import FaceRecognition from './components/FaceRecognition/FaceRecognition';
 import Particles from 'react-particles-js';
+import Clarifai from 'clarifai';
+
+const app = new Clarifai.App({
+  apiKey: '3d2f9d3bba3f4759a10537b90da6d680'
+ });
 
 
 const particleOptions = {
@@ -26,13 +32,42 @@ class App extends Component {
   constructor() {
     super();
     this.state = {
-      input:''
+      input: '',
+      imageUrl: '',
+      box: {}
     }
+  }
+  calculateFaceLocation = (data) => {
+   const clarifaiFace = data.outputs[0].data.regions[0].region_info.bounding_box;
+   const image = document.getElementById('inputimage');
+   const width = Number(image.width);
+   const height = Number(image.height);
+   return {
+     leftCol: clarifaiFace.left_col * width,
+     topRow: clarifaiFace.top_row * height,
+     rightCol: width - (clarifaiFace.right_col * width),
+     bottomRow : height - (clarifaiFace.bottom_row * height)
+   }
+  }
+
+  displayFaceBox = (box) => {
+    console.log(box);
+    this.setState({box: box})
   }
 
 
   onInputChange = (event) => {
-    console.log(event.target.value);
+   this.setState({input:event.target.value});
+  }
+
+  onButtonSubmit= () => {
+    this.setState({imageUrl: this.state.input});
+    app.models.predict(
+      Clarifai.FACE_DETECT_MODEL, 
+     this.state.input)
+      .then(response => this.displayFaceBox(this.calculateFaceLocation(response)))
+      .catch(err => console.log(err));
+  
   }
   render() {
     return(
@@ -43,7 +78,11 @@ class App extends Component {
       <Navigation />
       <Logo />
       <Rank />
-      <ImageLinkForm onInputChange={this.onInputChange} />
+      <ImageLinkForm 
+            onInputChange={this.onInputChange} 
+            onButtonSubmit={this.onButtonSubmit} />
+      <FaceRecognition box={this.state.box} imageUrl={this.state.imageUrl} />
+
 
    </div>
     );
