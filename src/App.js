@@ -8,11 +8,7 @@ import FaceRecognition from './components/FaceRecognition/FaceRecognition';
 import Signin from './components/Signin/Signin';
 import Register from './components/Register/Register';
 import Particles from 'react-particles-js';
-import Clarifai from 'clarifai';
 
-const app = new Clarifai.App({
-  apiKey: '3d2f9d3bba3f4759a10537b90da6d680'
- });
 
 
 const particleOptions = {
@@ -28,19 +24,39 @@ const particleOptions = {
     }
 }
 
-
+const initialState = {
+  input: '',
+  imageUrl: '',
+  box: {},
+  route: 'signin',
+  isSignedIn: false,
+  user: {
+    id:'',
+    name:'',
+    email:'',
+    entries:0,
+    joined:''
+  }
+}
 
 class App extends Component {
   constructor() {
     super();
-    this.state = {
-      input: '',
-      imageUrl: '',
-      box: {},
-      route: 'signin',
-      isSignedIn: false
+    this.state = initialState
+  }
+  loadUser = (data) =>{
+    this.setState({user: {
+      id: data.id,
+      name: data.name,
+      email: data.email,
+      entries: data.entries,
+      joined: data.joined
     }
   }
+    )
+  }
+
+  
   calculateFaceLocation = (data) => {
    const clarifaiFace = data.outputs[0].data.regions[0].region_info.bounding_box;
    const image = document.getElementById('inputimage');
@@ -55,7 +71,7 @@ class App extends Component {
   }
 
   displayFaceBox = (box) => {
-    console.log(box);
+    // console.log(box);
     this.setState({box: box})
   }
 
@@ -66,16 +82,38 @@ class App extends Component {
 
   onButtonSubmit= () => {
     this.setState({imageUrl: this.state.input});
-    app.models.predict(
-      Clarifai.FACE_DETECT_MODEL, 
-     this.state.input)
-      .then(response => this.displayFaceBox(this.calculateFaceLocation(response)))
+      fetch('https://powerful-springs-62344.herokuapp.com/imageUrl',{
+      method: 'post',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        input: this.state.input
+       })
+    })
+    .then(response => response.json())
+    .then(response => {
+        if(response){
+          fetch('https://powerful-springs-62344.herokuapp.com/image',{
+          method: 'put',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            id:this.state.user.id
+          })
+        })
+        .then(response => response.json())
+        .then(count => {
+          this.setState(Object.assign(this.state.user,{entries:count}))
+
+        })
+      }
+      this.displayFaceBox(this.calculateFaceLocation(response))
+      })
+      
       .catch(err => console.log(err));
   
   }
   onRouteChange= (route) => {
-    if (route === 'signin') {
-    this.setState({isSignedIn: false});
+    if (route === 'signout') {
+    this.setState(initialState);
     }
     else if (route === 'home') {
       this.setState({isSignedIn: true})
@@ -84,6 +122,7 @@ class App extends Component {
   }
 
   render() {
+    const {imageUrl, box, route, isSignedIn} = this.state;
     return(
    <div className='APP'>
       <Particles className='particles'
@@ -91,21 +130,27 @@ class App extends Component {
             />
       <Navigation 
       onRouteChange={this.onRouteChange}
-      isSignedIn={this.state.isSignedIn}
+      isSignedIn={isSignedIn}
       />
       { this.state.route === 'home' 
       ? <div>
           <Logo />
-          <Rank />
+          <Rank 
+          name={this.state.user.name}
+          entries={this.state.user.entries} 
+          />
           <ImageLinkForm 
                 onInputChange={this.onInputChange} 
                 onButtonSubmit={this.onButtonSubmit} />
-          <FaceRecognition box={this.state.box} imageUrl={this.state.imageUrl} />
+          <FaceRecognition box={box} imageUrl={imageUrl} />
         </div>
       : (
-      this.state.route === 'signin' ?
-      <Signin onRouteChange={this.onRouteChange} />:
+      route === 'signin' ?
+      <Signin 
+      loadUser={this.loadUser}
+      onRouteChange={this.onRouteChange} />:
       <Register 
+      loadUser={this.loadUser}
       onRouteChange={this.onRouteChange}
        />
       )
